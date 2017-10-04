@@ -1,30 +1,68 @@
 <template>
-  <div class='hello'>
-    <canvas 
-    id="canvas" 
-    width="300" 
-    height="300" 
-    @mousedown="canvasDown" 
-    @mousemove="canvasMove" 
-    @mouseup="canvasUp"
-    @touchstart="canvasDown" 
-    @touchmove="canvasMove" 
-    @touchend="canvasUp"></canvas>
+  <div>
+    <div class="wrap">
+      <div class="painter-header">
+        <section class="line-color">
+          <span>画笔颜色</span>
+          <ul>
+            <li v-for="(item, index) in colors" 
+                :key="item" 
+                :style="{backgroundColor: item}" 
+                @click="setColor(item)"></li>
+          </ul>
+          </section>
+        <section class="line-width">画笔大小</section>
+        <section class="painter-control">
+          <span>操作</span>
+          <ul>
+            <li v-for="(control,index) in controls" 
+                :key="index"
+                @click="canvasControl(control.action, $event)"
+                :title="control.title">{{control.title}}</li>
+          </ul>
+          </section>
+        <section class="pic-generator">生成图像</section>
+      </div>
+      <canvas 
+      id="canvas" 
+      width="300" 
+      height="300" 
+      @mousedown="canvasDown" 
+      @mousemove="canvasMove" 
+      @mouseup="canvasUp"
+      @touchstart="canvasDown" 
+      @touchmove="canvasMove" 
+      @touchend="canvasUp"></canvas>
+    </div>
   </div>
 </template>
 
 <script>
 export default {
-  name: 'hello',
+  name: 'painter',
   data () {
     return {
-      colors: ['red', 'tomato'],
+      colors: ['red', 'pink', 'blue', 'black', 'tomato'],
       canvasMouseMove: false,
       context: {},
       config: {
         lineWidth: 1,
         lineColor: 'red'
-      }
+      },
+      controls: [
+        {
+          title: '上一步',
+          action: 'prev'
+        },
+        {
+          title: '下一步',
+          action: 'next'
+        },
+        {
+          title: '清空',
+          action: 'clear'
+        }
+      ]
     }
   },
   methods: {
@@ -33,7 +71,8 @@ export default {
       this.context.lineWidth = lineWidth
       this.context.lineColor = lineColor
     },
-    setColor () {
+    setColor (color) {
+      this.context.strokeStyle = color;
     },
     // 设置画笔大小
     setBrush () {
@@ -60,6 +99,15 @@ export default {
         this.context.lineTo(canvasX, canvasY)
         this.context.stroke()
 
+      }
+    },
+    canvasControl (action, e) {
+      switch(action) {
+        case 'prev':
+        case 'next':
+        case 'clear':
+          this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+          break
       }
     }
   },
@@ -90,24 +138,21 @@ export default {
 
 <!-- Add 'scoped' attribute to limit CSS to this component only -->
 <style scoped>
+.painter-header {
+  border: 1px solid black;
+  width: 300px;
+}
+.painter-header li {
+  cursor: pointer;
+}
+.line-color li {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin: 0 3px;
+}
 canvas {
   border: 1px solid black;
-}
-h1, h2 {
-  font-weight: normal;
-}
-
-ul {
-  list-style-type: none;
-  padding: 0;
-}
-
-li {
-  display: inline-block;
-  margin: 0 10px;
-}
-
-a {
-  color: #42b983;
+  cursor: crosshair;
 }
 </style>
