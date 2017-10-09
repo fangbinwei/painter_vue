@@ -2,11 +2,21 @@
   <div>
     <div class="wrap">
       <div class="painter-header">
+        <section class="line-shape">
+          <span>形状</span>
+          <ul>
+            <li v-for="(item, index) in shapes" 
+                :key="item" 
+                @click="setShape(item)">{{item}}</li>
+          </ul>
+          </section>
+        <section class="line-width">画笔大小</section>
         <section class="line-color">
           <span>画笔颜色</span>
           <ul>
             <li v-for="(item, index) in colors" 
                 :key="item" 
+                :class="{active: config.lineColor === item}"
                 :style="{backgroundColor: item}" 
                 @click="setColor(item)"></li>
           </ul>
@@ -25,8 +35,8 @@
       </div>
       <canvas 
       id="canvas" 
-      width="300" 
-      height="300" 
+      width="400" 
+      height="400" 
       @mousedown="canvasDown" 
       @mousemove="canvasMove" 
       @mouseup="canvasUp"
@@ -42,10 +52,13 @@ export default {
   name: 'painter',
   data () {
     return {
-      colors: ['red', 'pink', 'blue', 'black', 'tomato'],
+      canvas: null,
+      shapes: ['curve', 'rect'],
+      colors: ['black', 'red', 'pink', 'blue', 'tomato'],
       canvasMouseMove: false,
       context: {},
       config: {
+        lineShape: 'curve',
         lineWidth: 1,
         lineColor: 'red'
       },
@@ -62,44 +75,38 @@ export default {
           title: '清空',
           action: 'clear'
         }
-      ]
+      ],
+      shapeStart: {
+        x: 0,
+        y: 0
+      }
     }
   },
   methods: {
     setCanvasStyle () {
-      let {lineWidth, lineColor} = this.config
+      let {lineWidth, lineColor, lineShape} = this.config
       this.context.lineWidth = lineWidth
       this.context.lineColor = lineColor
+      this.context.strokeStyle = this.config.lineColor
+    },
+    setShape (shape) {
+      this.config.lineShape = shape
     },
     setColor (color) {
-      this.context.strokeStyle = color;
+      this.config.lineColor = color
     },
     // 设置画笔大小
     setBrush () {
     },
     canvasDown (e) {
-      console.log('canvasDown')
-      this.canvasMouseMove = true
-      const canvasX = e.clientX - e.target.offsetLeft
-      const canvasY = e.clientY - e.target.offsetTop
-      console.log(canvasX, canvasY)
       this.setCanvasStyle()
-      this.context.beginPath()
-      this.context.moveTo(canvasX, canvasY)
+      this.drawStrategies(this.config.lineShape).canvasDown.call(this, e)
     },
     canvasUp (e) {
-      this.canvasMouseMove = false
+      this.drawStrategies(this.config.lineShape).canvasUp.call(this, e)
     },
     canvasMove (e) {
-      if (this.canvasMouseMove) {
-        console.log('canvasMove')
-        let canvasX, canvasY
-        canvasX = e.clientX - e.target.offsetLeft
-        canvasY = e.clientY - e.target.offsetTop
-        this.context.lineTo(canvasX, canvasY)
-        this.context.stroke()
-
-      }
+      this.drawStrategies(this.config.lineShape).canvasMove.call(this, e)
     },
     canvasControl (action, e) {
       switch(action) {
@@ -109,11 +116,84 @@ export default {
           this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
           break
       }
+    },
+    getMousePos (e, canvas) {
+      let rect = canvas.getBoundingClientRect()
+      // canvasX = e.clientX - e.target.offsetLeft
+      // canvasY = e.clientY - e.target.offsetTop
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      }
+
+    },
+    /**@argument type:'curve' */
+    drawStrategies (type) {
+      switch(type) {
+        case 'curve':
+          return {
+            canvasDown (e) {
+              console.log('canvasDown')
+              this.canvasMouseMove = true
+              let canvasX, canvasY
+              canvasX = this.getMousePos(e, this.canvas).x
+              canvasY = this.getMousePos(e, this.canvas).y
+              console.log(canvasX, canvasY)
+              this.context.beginPath()
+              this.context.moveTo(canvasX, canvasY)
+            },
+            canvasMove (e) {
+              if (this.canvasMouseMove) {
+                console.log('canvasMove')
+                let canvasX, canvasY
+                canvasX = this.getMousePos(e, this.canvas).x
+                canvasY = this.getMousePos(e, this.canvas).y
+                console.log(this.context)
+                this.context.lineTo(canvasX, canvasY)
+                this.context.stroke()
+              }
+            },
+            canvasUp (e) {
+              this.canvasMouseMove = false
+            }
+          }
+        case 'rect':
+          return {
+            canvasDown (e) {
+              this.canvasMouseMove = true
+              let canvasX, canvasY
+              this.shapeStart.x = this.getMousePos(e, this.canvas).x
+              this.shapeStart.y = this.getMousePos(e, this.canvas).y
+            },
+            canvasMove (e) {
+              if (this.canvasMouseMove) {
+                let endX, endY, w, h, width, height, offsetX, offsetY
+                endX = this.getMousePos(e, this.canvas).x
+                endY = this.getMousePos(e, this.canvas).y
+                w = endX - this.shapeStart.x
+                h = endY - this.shapeStart.y
+                offsetX = (w < 0) ? w : 0
+                offsetY = (h < 0) ? h : 0
+                width = Math.abs(endX - this.shapeStart.x)
+                height = Math.abs(endY - this.shapeStart.y)
+                this.context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+                this.context.beginPath()
+                this.context.rect(this.shapeStart.x + offsetX, this.shapeStart.y + offsetY, width, height)
+                this.context.stroke()
+              }
+            },
+            canvasUp (e) {
+              this.canvasMouseMove = false
+            }
+          }
+        case 'circle':
+        case 'line':
+      }
     }
   },
   mounted () {
-    const canvas = document.getElementById('canvas')
-    this.context = canvas.getContext('2d')
+    this.canvas = document.getElementById('canvas')
+    this.context = this.canvas.getContext('2d')
     this.setCanvasStyle()
     // (function draw () {
     //   var canvas = document.getElementById('canvas')
@@ -140,7 +220,7 @@ export default {
 <style scoped>
 .painter-header {
   border: 1px solid black;
-  width: 300px;
+  width: 400px;
 }
 .painter-header li {
   cursor: pointer;
@@ -150,6 +230,9 @@ export default {
   width: 13px;
   height: 13px;
   margin: 0 3px;
+}
+.line-color .active {
+  border: 2px solid black;
 }
 canvas {
   border: 1px solid black;
