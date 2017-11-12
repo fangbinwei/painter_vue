@@ -33,17 +33,30 @@
           </section>
         <section class="pic-generator">生成图像</section>
       </div>
-      <canvas 
-      id="canvas" 
-      width="400" 
-      height="400" 
-      @mousedown="canvasDown" 
-      @mousemove="canvasMove" 
-      @mouseup="canvasUp"
-      @touchstart="canvasDown" 
-      @touchmove="canvasMove" 
-      @touchend="canvasUp"></canvas>
+      <div class="canvas-wrap">
+        <canvas 
+        id="canvas" 
+        width="400" 
+        height="400" 
+        @mousedown="canvasDown" 
+        @mousemove="canvasMove" 
+        @mouseup="canvasUp"
+        @touchstart="canvasDown" 
+        @touchmove="canvasMove" 
+        @touchend="canvasUp"></canvas>
+        <canvas 
+        id="canvas-track" 
+        width="400" 
+        height="400" 
+        @mousedown="canvasDown" 
+        @mousemove="canvasMove" 
+        @mouseup="canvasUp"
+        @touchstart="canvasDown" 
+        @touchmove="canvasMove" 
+        @touchend="canvasUp"></canvas>
     </div>
+
+      </div>
   </div>
 </template>
 
@@ -53,10 +66,12 @@ export default {
   data () {
     return {
       canvas: null,
+      canvasTrack: null,
       shapes: ['curve', 'rect'],
       colors: ['black', 'red', 'pink', 'blue', 'tomato'],
       canvasMouseMove: false,
       context: {},
+      trackContext: {},
       config: {
         lineShape: 'curve',
         lineWidth: 1,
@@ -87,7 +102,12 @@ export default {
       let {lineWidth, lineColor, lineShape} = this.config
       this.context.lineWidth = lineWidth
       this.context.lineColor = lineColor
-      this.context.strokeStyle = this.config.lineColor
+      this.context.strokeStyle = lineColor
+      
+      // track
+      this.trackContext.lineWidth = lineWidth
+      this.trackContext.lineColor = lineColor
+      this.trackContext.strokeStyle = lineColor
     },
     setShape (shape) {
       this.config.lineShape = shape
@@ -113,7 +133,7 @@ export default {
         case 'prev':
         case 'next':
         case 'clear':
-          this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+          this.clear()
           break
       }
     },
@@ -127,7 +147,33 @@ export default {
       }
 
     },
-    /**@argument type:'curve' */
+    clearTrack () {
+      this.trackContext.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+    },
+    clear () {
+      this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+    },
+    drawRect (e, context, clearFlag) {
+      let endX, endY, w, h, width, height, offsetX, offsetY
+      endX = this.getMousePos(e, this.canvas).x
+      endY = this.getMousePos(e, this.canvas).y
+      w = endX - this.shapeStart.x
+      h = endY - this.shapeStart.y
+      offsetX = (w < 0) ? w : 0
+      offsetY = (h < 0) ? h : 0
+      width = Math.abs(endX - this.shapeStart.x)
+      height = Math.abs(endY - this.shapeStart.y)
+      if (clearFlag) {
+        context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+      }
+      context.beginPath()
+      context.rect(this.shapeStart.x + offsetX, this.shapeStart.y + offsetY, width, height)
+      context.stroke()
+
+    },
+    /**
+     * @param {string} type 'curve' or 'rect' and etc.
+     */
     drawStrategies (type) {
       switch(type) {
         case 'curve':
@@ -148,7 +194,6 @@ export default {
                 let canvasX, canvasY
                 canvasX = this.getMousePos(e, this.canvas).x
                 canvasY = this.getMousePos(e, this.canvas).y
-                console.log(this.context)
                 this.context.lineTo(canvasX, canvasY)
                 this.context.stroke()
               }
@@ -167,23 +212,13 @@ export default {
             },
             canvasMove (e) {
               if (this.canvasMouseMove) {
-                let endX, endY, w, h, width, height, offsetX, offsetY
-                endX = this.getMousePos(e, this.canvas).x
-                endY = this.getMousePos(e, this.canvas).y
-                w = endX - this.shapeStart.x
-                h = endY - this.shapeStart.y
-                offsetX = (w < 0) ? w : 0
-                offsetY = (h < 0) ? h : 0
-                width = Math.abs(endX - this.shapeStart.x)
-                height = Math.abs(endY - this.shapeStart.y)
-                this.context.clearRect(0, 0, this.canvas.width, this.canvas.height)
-                this.context.beginPath()
-                this.context.rect(this.shapeStart.x + offsetX, this.shapeStart.y + offsetY, width, height)
-                this.context.stroke()
+                this.drawRect(e, this.trackContext, true)
               }
             },
             canvasUp (e) {
               this.canvasMouseMove = false
+              this.clearTrack()
+              this.drawRect(e, this.context, false)
             }
           }
         case 'circle':
@@ -193,25 +228,10 @@ export default {
   },
   mounted () {
     this.canvas = document.getElementById('canvas')
+    this.canvasTrack = document.getElementById('canvas-track')
     this.context = this.canvas.getContext('2d')
+    this.trackContext = this.canvasTrack.getContext('2d')
     this.setCanvasStyle()
-    // (function draw () {
-    //   var canvas = document.getElementById('canvas')
-    //   if (canvas.getContext) {
-    //     var ctx = canvas.getContext('2d')
-    //     ctx.beginPath()
-    //     ctx.arc(100, 100, 99, 2 * Math.PI, false)
-
-    //     ctx.moveTo(194, 100)
-    //     ctx.arc(100, 100, 94, 0, 2* Math.PI, false)
-
-    //     ctx.translate(100, 100)
-    //     ctx.rotate(1)
-    //     ctx.moveTo(0,0)
-    //     ctx.lineTo(0, -85)
-    //     ctx.stroke()
-    //   }
-    // })()
   }
 }
 </script>
@@ -234,8 +254,17 @@ export default {
 .line-color .active {
   border: 2px solid black;
 }
+
+/* canvas */
 canvas {
   border: 1px solid black;
   cursor: crosshair;
+  position: absolute;
+}
+#canvas {
+  z-index: 2;
+}
+#canvas-track {
+  z-index: 3;
 }
 </style>
