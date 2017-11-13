@@ -67,14 +67,14 @@ export default {
     return {
       canvas: null,
       canvasTrack: null,
-      shapes: ['curve', 'rect'],
+      shapes: ['line', 'curve', 'rect', 'circle'],
       colors: ['black', 'red', 'pink', 'blue', 'tomato'],
       canvasMouseMove: false,
       context: {},
       trackContext: {},
       config: {
         lineShape: 'curve',
-        lineWidth: 1,
+        lineWidth: 2,
         lineColor: 'red'
       },
       controls: [
@@ -94,10 +94,23 @@ export default {
       shapeStart: {
         x: 0,
         y: 0
+      },
+      shapeEnd: {
+        x: 0,
+        y: 0
       }
     }
   },
   methods: {
+    // 初始化获取canvas元素
+    init () {
+      this.canvas = document.getElementById('canvas')
+      this.canvasTrack = document.getElementById('canvas-track')
+      this.context = this.canvas.getContext('2d')
+      // this.context.translate(0.5, 0.5)
+      this.trackContext = this.canvasTrack.getContext('2d')
+      // this.trackContext.translate(0.5, 0.5)
+    },
     setCanvasStyle () {
       let {lineWidth, lineColor, lineShape} = this.config
       this.context.lineWidth = lineWidth
@@ -118,16 +131,20 @@ export default {
     // 设置画笔大小
     setBrush () {
     },
+    // 画图鼠标按下事件
     canvasDown (e) {
       this.setCanvasStyle()
       this.drawStrategies(this.config.lineShape).canvasDown.call(this, e)
     },
+    // 画图鼠标松开事件
     canvasUp (e) {
       this.drawStrategies(this.config.lineShape).canvasUp.call(this, e)
     },
+    // 画图鼠标移动事件
     canvasMove (e) {
       this.drawStrategies(this.config.lineShape).canvasMove.call(this, e)
     },
+    // 画图操作
     canvasControl (action, e) {
       switch(action) {
         case 'prev':
@@ -137,6 +154,7 @@ export default {
           break
       }
     },
+    // 获取鼠标在canvas中的位置
     getMousePos (e, canvas) {
       let rect = canvas.getBoundingClientRect()
       // canvasX = e.clientX - e.target.offsetLeft
@@ -147,55 +165,109 @@ export default {
       }
 
     },
+    // 清除轨迹canvas内容
     clearTrack () {
       this.trackContext.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
     },
+    // 清除canvas内容
     clear () {
-      this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+      if (!this.canvasMouseMove) {
+        this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+      }
     },
-    drawRect (e, context, clearFlag) {
-      let endX, endY, w, h, width, height, offsetX, offsetY
-      endX = this.getMousePos(e, this.canvas).x
-      endY = this.getMousePos(e, this.canvas).y
-      w = endX - this.shapeStart.x
-      h = endY - this.shapeStart.y
+    // 计算鼠标位置作为起始点
+    shapeStartCal (e) {
+      this.shapeStart.x = this.getMousePos(e, this.canvas).x
+      this.shapeStart.y = this.getMousePos(e, this.canvas).y
+    },
+    // 计算鼠标位置作为结束点
+    shapeEndCal (e) {
+      this.shapeEnd.x = this.getMousePos(e, this.canvas).x
+      this.shapeEnd.y = this.getMousePos(e, this.canvas).y
+
+    },
+    drawLine (context, clearFlag, startX, startY, endX, endY) {
+      if (clearFlag) {
+        context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+        console.log(context)
+      }
+      context.beginPath()
+      context.moveTo(startX, startY)
+      context.lineTo(endX, endY)
+      context.stroke()
+    },
+    drawRect (context, clearFlag, startX, startY, endX, endY) {
+      let w, h, width, height, offsetX, offsetY
+      w = endX - startX
+      h = endY - startY
+      // 矩阵起始点偏移
       offsetX = (w < 0) ? w : 0
       offsetY = (h < 0) ? h : 0
-      width = Math.abs(endX - this.shapeStart.x)
-      height = Math.abs(endY - this.shapeStart.y)
+      // 矩阵宽 高
+      width = Math.abs(endX - startX)
+      height = Math.abs(endY - startY)
+      // 是否清除轨迹
       if (clearFlag) {
         context.clearRect(0, 0, this.canvas.width, this.canvas.height)
       }
       context.beginPath()
-      context.rect(this.shapeStart.x + offsetX, this.shapeStart.y + offsetY, width, height)
+      context.rect(startX + offsetX, startY + offsetY, width, height)
       context.stroke()
-
     },
     /**
      * @param {string} type 'curve' or 'rect' and etc.
      */
     drawStrategies (type) {
       switch(type) {
+        case 'line':
+          return {
+            canvasDown (e) {
+              console.log('line down')
+              if (!this.canvasMouseMove) {
+                this.canvasMouseMove = true
+                // 获取直线起点坐标
+                this.shapeStartCal(e)
+              }
+            },
+            canvasMove (e) {
+              if (this.canvasMouseMove) {
+                // 获取直线终点坐标
+                this.shapeEndCal(e)
+                // 在轨迹canvas中显示轨迹,并实时清除上一次的轨迹
+                this.drawLine(this.trackContext, true, this.shapeStart.x, this.shapeStart.y, this.shapeEnd.x, this.shapeEnd.y)
+                console.log('line move')
+              }
+
+            },
+            canvasUp (e) {
+              this.canvasMouseMove = false
+              // 清理轨迹canvas中的轨迹
+              this.clearTrack()
+              console.log('line up')
+              this.drawLine(this.context, false, this.shapeStart.x, this.shapeStart.y, this.shapeEnd.x, this.shapeEnd.y)
+
+            }
+          }
         case 'curve':
           return {
             canvasDown (e) {
               console.log('canvasDown')
               this.canvasMouseMove = true
-              let canvasX, canvasY
-              canvasX = this.getMousePos(e, this.canvas).x
-              canvasY = this.getMousePos(e, this.canvas).y
-              console.log(canvasX, canvasY)
+              // let canvasX, canvasY
+              // canvasX = this.getMousePos(e, this.canvas).x
+              // canvasY = this.getMousePos(e, this.canvas).y
+              // console.log(canvasX, canvasY)
               this.context.beginPath()
-              this.context.moveTo(canvasX, canvasY)
+              // this.context.moveTo(canvasX, canvasY)
             },
             canvasMove (e) {
               if (this.canvasMouseMove) {
                 console.log('canvasMove')
-                let canvasX, canvasY
-                canvasX = this.getMousePos(e, this.canvas).x
-                canvasY = this.getMousePos(e, this.canvas).y
-                this.context.lineTo(canvasX, canvasY)
+                // 获取当前鼠标位置的坐标,用于画曲线
+                this.shapeStartCal(e)
+                this.context.lineTo(this.shapeStart.x, this.shapeStart.y)
                 this.context.stroke()
+                console.log(this.context.strokeStyle)
               }
             },
             canvasUp (e) {
@@ -205,32 +277,51 @@ export default {
         case 'rect':
           return {
             canvasDown (e) {
-              this.canvasMouseMove = true
-              let canvasX, canvasY
-              this.shapeStart.x = this.getMousePos(e, this.canvas).x
-              this.shapeStart.y = this.getMousePos(e, this.canvas).y
+              if (!this.canvasMouseMove) {
+                this.canvasMouseMove = true
+                // 获取矩形左上角坐标
+                this.shapeStartCal(e)
+                console.log('rect down')
+              }
             },
             canvasMove (e) {
               if (this.canvasMouseMove) {
-                this.drawRect(e, this.trackContext, true)
+                // 获取矩形右下角坐标
+                this.shapeEndCal(e)
+                // 在轨迹canvas中显示轨迹,并实时清除上一次轨迹
+                this.drawRect(this.trackContext, true, this.shapeStart.x, this.shapeStart.y, this.shapeEnd.x, this.shapeEnd.y)
+              console.log('rect move')
               }
             },
             canvasUp (e) {
               this.canvasMouseMove = false
+              // 清理轨迹canvas的内容
               this.clearTrack()
-              this.drawRect(e, this.context, false)
+              this.drawRect(this.context, false, this.shapeStart.x, this.shapeStart.y, this.shapeEnd.x, this.shapeEnd.y)
+              console.log('rect up')
             }
           }
         case 'circle':
-        case 'line':
+          return {
+            canvasDown (e) {
+                this.canvasMouseMove = true
+                this.shapeStartCal(e)
+                console.log('rect down')
+            },
+            canvasMove (e) {
+
+            },
+            canvasUp (e) {
+
+            }
+          }
       }
     }
   },
   mounted () {
-    this.canvas = document.getElementById('canvas')
-    this.canvasTrack = document.getElementById('canvas-track')
-    this.context = this.canvas.getContext('2d')
-    this.trackContext = this.canvasTrack.getContext('2d')
+    // 获取dom中canvas元素
+    this.init()
+    // 初始化canvas相关参数
     this.setCanvasStyle()
   }
 }
