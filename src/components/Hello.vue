@@ -31,7 +31,8 @@
                 :title="control.title">{{control.title}}</li>
           </ul>
           </section>
-        <section class="pic-generator">生成图像</section>
+        <section class="pic-generator"
+                 @click="getImage">生成图像</section>
       </div>
       <div class="canvas-wrap">
         <canvas 
@@ -54,9 +55,15 @@
         @touchstart="canvasDown" 
         @touchmove="canvasMove" 
         @touchend="canvasUp"></canvas>
-    </div>
-
       </div>
+    </div>
+    <div id="img-box">
+      <div class="img-item" 
+           v-for="(item,index) in imgUrl"
+           :key="index">
+        <img :src="item" alt="">
+      </div>
+    </div>
   </div>
 </template>
 
@@ -67,6 +74,7 @@ export default {
     return {
       canvas: null,
       canvasTrack: null,
+      imgUrl: [],
       shapes: ['line', 'curve', 'rect', 'circle'],
       colors: ['black', 'red', 'pink', 'blue', 'tomato'],
       canvasMouseMove: false,
@@ -91,6 +99,9 @@ export default {
           action: 'clear'
         }
       ],
+      preArray: [],
+      curArray: [],
+      nextArray: [],
       shapeStart: {
         x: 0,
         y: 0
@@ -98,6 +109,11 @@ export default {
       shapeEnd: {
         x: 0,
         y: 0
+      },
+      circleDataTemp: {
+        centerX: 0,
+        centerY: 0,
+        r: 0
       }
     }
   },
@@ -135,10 +151,15 @@ export default {
     canvasDown (e) {
       this.setCanvasStyle()
       this.drawStrategies(this.config.lineShape).canvasDown.call(this, e)
+      // save previous data
+      this.saveData(this.context, this.preArray)
     },
     // 画图鼠标松开事件
     canvasUp (e) {
       this.drawStrategies(this.config.lineShape).canvasUp.call(this, e)
+      // save current data
+      this.curArray.length = 0
+      this.saveData(this.context, this.curArray)
     },
     // 画图鼠标移动事件
     canvasMove (e) {
@@ -148,10 +169,40 @@ export default {
     canvasControl (action, e) {
       switch(action) {
         case 'prev':
+          this.prev(this.context, this.preArray, this.curArray, this.nextArray)
+          break
         case 'next':
+          this.next(this.context, this.preArray, this.curArray, this.nextArray)
+          break
         case 'clear':
           this.clear()
           break
+      }
+    },
+    prev (context, preArr, curArray, nextArr) {
+      if (preArr.length) {
+        // save current data into nextArr
+        nextArr.push(curArray.pop())
+
+        // pop previous data to render the canvas
+        let popData = preArr.pop()
+        context.putImageData(popData, 0, 0)
+
+        // save previous data into curArr
+        curArray.push(popData)
+      }
+    },
+    next (context, preArr, curArray, nextArr) {
+      if (nextArr.length) {
+        // save current data into preArr
+        preArr.push(curArray.pop())
+
+        // pop next data to render the canvas
+        let popData = nextArr.pop()
+        context.putImageData(popData, 0, 0)
+
+        // save next data into currArr
+        curArray.push(popData)
       }
     },
     // 获取鼠标在canvas中的位置
@@ -173,7 +224,13 @@ export default {
     clear () {
       if (!this.canvasMouseMove) {
         this.context.clearRect(0, 0, this.context.canvas.width, this.context.canvas.height)
+        this.clearArrayTemp ()
       }
+    },
+    clearArrayTemp () {
+      this.preArray.length = 0
+      this.curArray.length = 0
+      this.nextArray.length = 0
     },
     // 计算鼠标位置作为起始点
     shapeStartCal (e) {
@@ -214,6 +271,23 @@ export default {
       context.rect(startX + offsetX, startY + offsetY, width, height)
       context.stroke()
     },
+    drawCircle (context, clearFlag, x, y, r, sAngle=0, eAngle=2*Math.PI, counterclockwise=true) {
+      if (clearFlag) {
+        context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+      }
+      context.beginPath()
+      context.arc(x, y, r, sAngle, eAngle, counterclockwise)
+      context.stroke()
+    },
+    saveData (context, statusArray, width=this.canvas.width, height=this.canvas.height) {
+      let data = context.getImageData(0, 0, width, height)
+      statusArray.push(data)
+    },
+    getImage () {
+      let canvas = this.canvas
+      let src = canvas.toDataURL('imge/png')
+      this.imgUrl.push(src)
+    },
     /**
      * @param {string} type 'curve' or 'rect' and etc.
      */
@@ -251,20 +325,15 @@ export default {
         case 'curve':
           return {
             canvasDown (e) {
-              console.log('canvasDown')
               this.canvasMouseMove = true
-              // let canvasX, canvasY
-              // canvasX = this.getMousePos(e, this.canvas).x
-              // canvasY = this.getMousePos(e, this.canvas).y
-              // console.log(canvasX, canvasY)
               this.context.beginPath()
-              // this.context.moveTo(canvasX, canvasY)
             },
             canvasMove (e) {
               if (this.canvasMouseMove) {
                 console.log('canvasMove')
                 // 获取当前鼠标位置的坐标,用于画曲线
                 this.shapeStartCal(e)
+                console.log(e.clientX,this.shapeStart.x, this.shapeStart.y)
                 this.context.lineTo(this.shapeStart.x, this.shapeStart.y)
                 this.context.stroke()
                 console.log(this.context.strokeStyle)
@@ -304,14 +373,34 @@ export default {
         case 'circle':
           return {
             canvasDown (e) {
+              if (!this.canvasMouseMove) {
                 this.canvasMouseMove = true
                 this.shapeStartCal(e)
-                console.log('rect down')
+                console.log('circle', this.shapeStart.x, this.shapeStart.y)
+              }
             },
             canvasMove (e) {
+              if (this.canvasMouseMove) {
+                this.shapeEndCal(e)
+                console.log('circle', this.shapeEnd.x, this.shapeEnd.y)
+                let centerX, centerY, r
+                this.circleDataTemp.centerX = centerX = (this.shapeEnd.x + this.shapeStart.x)/2
+                this.circleDataTemp.centerY = centerY= (this.shapeEnd.y + this.shapeStart.y)/2
+                this.circleDataTemp.r = r = Math.sqrt((this.shapeEnd.x - this.shapeStart.x)*
+                              (this.shapeEnd.x - this.shapeStart.x)+
+                              (this.shapeEnd.y - this.shapeStart.y)*
+                              (this.shapeEnd.y - this.shapeStart.y))/2
+                console.log(centerX, centerY, r)
+                this.drawCircle(this.trackContext, true, centerX, centerY, r)
+              }
 
             },
             canvasUp (e) {
+              this.canvasMouseMove = false
+              // 清理轨迹canvas的内容
+              this.clearTrack()
+              this.drawCircle(this.context, false, this.circleDataTemp.centerX, this.circleDataTemp.centerY, this.circleDataTemp.r)
+              console.log('circle up')
 
             }
           }
@@ -345,12 +434,18 @@ export default {
 .line-color .active {
   border: 2px solid black;
 }
+.pic-generator {
+  cursor: pointer;
+}
 
 /* canvas */
 canvas {
   border: 1px solid black;
   cursor: crosshair;
   position: absolute;
+}
+.canvas-wrap {
+  height: 400px;
 }
 #canvas {
   z-index: 2;
